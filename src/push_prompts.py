@@ -69,17 +69,24 @@ def push_prompt_to_langsmith(prompt_name: str, prompt_data: dict) -> bool:
         + [t.lower().replace(" ", "-") for t in techniques]
     ))
 
+    metadata = {
+        "is_public": True,
+        "description": prompt_data.get("description", "").strip(),
+        "readme": build_readme(prompt_data),
+        "tags": tags,
+    }
+
     try:
-        url = client.push_prompt(
-            prompt_name,
-            object=prompt,
-            is_public=True,
-            description=prompt_data.get("description", "").strip(),
-            readme=build_readme(prompt_data),
-            tags=tags,
-        )
+        url = client.push_prompt(prompt_name, object=prompt, **metadata)
     except Exception as e:
         message = str(e)
+        if "nothing to commit" in message.lower():
+            # O conteúdo já é o mais recente no Hub: atualiza só os metadados.
+            client.update_prompt(prompt_name, **metadata)
+            print(f"   ✓ Conteúdo inalterado desde o último commit; metadados atualizados: {prompt_name}")
+            print(f"   ✓ Tags: {', '.join(tags)}")
+            print(f"   ✓ URL: https://smith.langchain.com/hub/{prompt_name}")
+            return True
         print(f"❌ Erro ao fazer push de '{prompt_name}': {message}")
         if "handle" in message.lower() or "403" in message or "404" in message:
             print("\nConfira se USERNAME_LANGSMITH_HUB é o seu handle público do Hub")
